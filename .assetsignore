@@ -1,4 +1,4 @@
-# Files that live in the repo but should NOT be served from forgeassembly.com.
+# Files that live in the repo but should NOT be served from forgeassembler.app.
 # Format is the same as .gitignore.
 
 .git

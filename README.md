@@ -1,7 +1,8 @@
 # forgeassembler-web
 
-Static landing site for ForgeAssembler. Deployed to **forgeassembly.com** via
-Cloudflare Pages.
+Static landing site for ForgeAssembler. Deployed to **forgeassembler.app** via
+Cloudflare (Workers Assets). The older **forgeassembly.com** domain stays
+attached as a secondary alias until it expires.
 
 ## Structure
 
@@ -24,9 +25,9 @@ python -m http.server 8080
 
 ## Deployment
 
-Cloudflare Pages watches the `main` branch of this repo. Every push auto-builds
-and deploys to `forgeassembly.com`. No build step — the site is static HTML +
-assets.
+Cloudflare Workers Assets watches the `main` branch of this repo. Every push
+auto-builds and deploys to `forgeassembler.app` (and the legacy
+`forgeassembly.com`). No build step — the site is static HTML + assets.
 
 ## Release version badge
 
