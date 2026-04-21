@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ForgeAssembler — Assemble many clips into one long combined output</title>
+  <meta name="description" content="ForgeAssembler concatenates many FunscriptForge-style clips (video + funscripts) into one long combined output — MP4 with chapter markers, every funscript channel stitched in lockstep, fade-to-black joiners, per-section image/audio/text overlays, and a heatmap. Local desktop app, no cloud." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0e1117;
+      --surface:  #1a1d27;
+      --border:   #2d3148;
+      --accent:   #ff6b30;
+      --accent2:  #ff8a5c;
+      --text:     #fafafa;
+      --muted:    #9ba3c4;
+      --code-bg:  #12151e;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(14,17,23,0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 88px;
+    }
+    nav .brand {
+      display: flex; align-items: center; gap: 0.6rem;
+      font-weight: 700; font-size: 1.05rem; color: var(--text);
+      text-decoration: none;
+    }
+    nav .brand img { height: 64px; width: auto; object-fit: contain; }
+    nav .links { display: flex; gap: 1.5rem; }
+    nav .links a {
+      color: var(--muted); text-decoration: none; font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+    nav .links a:hover { color: var(--text); }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      padding: 6rem 2rem 5rem;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .hero .banner-wrap {
+      margin-bottom: 2rem;
+    }
+    .hero .banner-wrap img {
+      width: 100%; max-width: 640px; height: auto; border-radius: 12px;
+    }
+    .hero h1 {
+      font-size: clamp(2.2rem, 5vw, 3.4rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 1.25rem;
+      letter-spacing: -0.02em;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p.tagline {
+      font-size: clamp(1rem, 2.5vw, 1.2rem);
+      color: var(--muted);
+      max-width: 620px;
+      margin: 0 auto 2.5rem;
+    }
+
+    .dl-buttons {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.55rem;
+      padding: 0.75rem 1.6rem;
+      border-radius: 8px;
+      font-size: 1rem; font-weight: 600;
+      text-decoration: none; cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn svg { flex-shrink: 0; }
+
+    .version-note { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+
+    /* ── Sections ── */
+    .section {
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 4rem 2rem;
+    }
+    .section-title {
+      font-size: 1.7rem; font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    .section-sub {
+      color: var(--muted); font-size: 1rem;
+      margin-bottom: 3rem;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.25rem;
+    }
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+    }
+    .feature-card .icon {
+      font-size: 6rem; margin-bottom: 0.75rem;
+    }
+    .feature-card .icon img {
+      width: 160px; height: 160px; object-fit: contain;
+    }
+    .feature-card h3 {
+      font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem;
+    }
+    .feature-card p { font-size: 0.88rem; color: var(--muted); }
+
+    /* ── How it works ── */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1.25rem;
+    }
+    .step {
+      display: flex; flex-direction: column; gap: 0.5rem;
+    }
+    .step .num {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700; font-size: 0.95rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .step h3 { font-size: 0.95rem; font-weight: 600; }
+    .step p  { font-size: 0.85rem; color: var(--muted); }
+
+    /* ── System requirements ── */
+    .reqs-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    .reqs-table th, .reqs-table td {
+      text-align: left;
+      padding: 0.6rem 1rem;
+      border: 1px solid var(--border);
+    }
+    .reqs-table th {
+      background: var(--surface);
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .reqs-table td { color: var(--text); }
+
+    /* ── More tools grid ── */
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 1.5rem;
+    }
+    .tool-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .tool-card-header {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+    .tool-card-header img {
+      width: 96px; height: 96px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+    .tool-card-header h3 {
+      font-size: 1.15rem; font-weight: 700;
+      margin-bottom: 0.3rem;
+    }
+    .tool-card-header p {
+      font-size: 0.9rem; color: var(--muted);
+      line-height: 1.5;
+    }
+    .tool-card .tool-dl {
+      display: flex; flex-wrap: wrap; gap: 0.5rem;
+      margin-top: auto;
+    }
+    .tool-card .tool-dl a {
+      font-size: 0.8rem; padding: 0.4rem 0.8rem;
+      border-radius: 6px; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .tool-card .tool-dl a:hover {
+      border-color: var(--accent);
+      background: rgba(255, 107, 48, 0.08);
+    }
+    .tool-card .tool-dl svg {
+      width: 14px; height: 14px;
+    }
+
+    /* ── Download CTA ── */
+    .cta-bar {
+      background: linear-gradient(135deg, #1a120e 0%, #1a1d27 60%, #0e1117 100%);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .cta-bar .section { text-align: center; }
+    .cta-bar p { color: var(--muted); margin-bottom: 2rem; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem;
+      text-align: center;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    footer a { color: var(--muted); text-decoration: underline; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 600px) {
+      .hero { padding: 4rem 1.25rem 3rem; }
+      .section { padding: 3rem 1.25rem; }
+      nav .links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Navigation ── -->
+<nav>
+  <a class="brand" href="#">
+    <img src="forgeassembler_wordmark.png" alt="ForgeAssembler" />
+  </a>
+  <div class="links">
+    <a href="#features">Features</a>
+    <a href="#how-it-works">How it works</a>
+    <a href="#requirements">Requirements</a>
+    <a href="https://liquid-releasing.github.io/forgeassembler/" target="_blank" rel="noopener">Docs</a>
+    <a href="https://discord.gg/sZWCqgxY" target="_blank" rel="noopener">Discord</a>
+    <a href="https://github.com/liquid-releasing/forgeassembler" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</nav>
+
+<!-- ── Hero ── -->
+<section class="hero">
+  <div class="banner-wrap">
+    <img src="forgeassembler_horizontal.png" alt="ForgeAssembler" />
+  </div>
+  <h1>Stitch many clips<br /><span>into one long output</span></h1>
+  <p class="tagline">
+    Take finished FunscriptForge clips — video plus every funscript channel — and
+    concatenate them into one long combined output. MP4 with chapter markers,
+    channel funscripts in lockstep, fade-to-black joiners, per-section overlays,
+    and a heatmap alongside the video.
+  </p>
+
+  <div class="dl-buttons">
+    <a class="btn btn-primary"
+       href="https://github.com/liquid-releasing/forgeassembler-releases/releases/latest/download/ForgeAssembler-windows.zip"
+       download>
+      <!-- Windows icon -->
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
+      </svg>
+      Download for Windows
+    </a>
+    <a class="btn btn-secondary"
+       href="https://github.com/liquid-releasing/forgeassembler-releases/releases/latest/download/ForgeAssembler-macos.zip"
+       download>
+      <!-- Apple icon -->
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/>
+      </svg>
+      Download for macOS
+    </a>
+    <a class="btn btn-secondary"
+       href="https://github.com/liquid-releasing/forgeassembler-releases/releases/latest/download/ForgeAssembler-linux.tar.gz"
+       download>
+      <!-- Terminal icon -->
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M20 3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H4V7h16v12zm-9 2v-2h2v2h-2zM5.5 11.5l1.41-1.42L10 13.17l-3.09 3.09L5.5 14.84 7.67 12.5 5.5 11.5zm5.5 4h5v-2h-5v2z"/>
+      </svg>
+      Download for Linux
+    </a>
+  </div>
+  <p class="version-note" id="version-line">
+    <span id="version-label">Latest release</span>
+    &nbsp;·&nbsp; Free &nbsp;·&nbsp; No Python required &nbsp;·&nbsp;
+    <a href="https://github.com/liquid-releasing/forgeassembler" style="color:var(--muted);">Open source</a>
+  </p>
+  <p class="version-note" style="margin-top:0.5rem;">
+    Pre-release software. Provided as-is, without warranty of any kind. Use at your own risk.
+  </p>
+</section>
+
+<hr class="divider" />
+
+<!-- ── Features ── -->
+<section class="section" id="features">
+  <h2 class="section-title">What it does</h2>
+  <p class="section-sub">Everything you need to take a folder of clips from pile-of-files to one polished output.</p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="icon"><img src="anvil.png" alt="" /></div>
+      <h3>Section-based assembly</h3>
+      <p>Group clips into sections that become MP4 chapters. Each section can have its own overlays, audio bed, joiner, and funscript channels — or share them with neighbours.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon"><img src="worktable.png" alt="" /></div>
+      <h3>Image, audio, and text overlays</h3>
+      <p>Drop a logo on the corner, a music bed across a section, or a title-card text block on the nine-position grid — with timing, fades, opacity, and per-overlay Mix % for audio.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon"><img src="spark.png" alt="" /></div>
+      <h3>Fade-to-black joiners</h3>
+      <p>Decoupled hold and fade between sections. Film-style transitions with configurable black-hold duration, per-side fade length, and a closing fade at the end of the output.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon"><img src="tongs.png" alt="" /></div>
+      <h3>Every funscript channel in lockstep</h3>
+      <p>Concatenate main, multi-axis, three-phase estim, prostate — every channel your clips declare. Detects channel sub-folders for FunscriptForge layouts, stitches gaps cleanly.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon"><img src="oven.png" alt="" /></div>
+      <h3>Chapter markers + heatmap</h3>
+      <p>One chapter per section in the MP4 — readable by VLC, File Explorer, Plex. A full-output heatmap of the main funscript track lands alongside the video for instant pacing review.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon"><img src="anvil-no-sparks.png" alt="" /></div>
+      <h3>Fully local</h3>
+      <p>Runs on your machine. No cloud, no account, no telemetry. Your clips and funscripts never leave your computer.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ── How it works ── -->
+<section class="section" id="how-it-works">
+  <h2 class="section-title">How it works</h2>
+  <p class="section-sub">A four-step pipeline from folder of clips to polished output.</p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="num">1</div>
+      <h3>Add clips</h3>
+      <p>Browse a folder or paste paths. Clips go into a single section, separate sections, or append onto the last section — your call.</p>
+    </div>
+    <div class="step">
+      <div class="num">2</div>
+      <h3>Arrange sections</h3>
+      <p>Name each section for its MP4 chapter title. Pick joiners (cut or fade-to-black) between sections.</p>
+    </div>
+    <div class="step">
+      <div class="num">3</div>
+      <h3>Add overlays</h3>
+      <p>Drop an image logo, an audio bed, or a title-card text block on any section with timing, position, and fade controls.</p>
+    </div>
+    <div class="step">
+      <div class="num">4</div>
+      <h3>Forge</h3>
+      <p>Click Forge. The app concatenates the video, stitches every funscript channel, renders the heatmap, and writes chapter markers — all in one pass.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ── System requirements ── -->
+<section class="section" id="requirements">
+  <h2 class="section-title">System requirements</h2>
+  <p class="section-sub">Standalone app — no Python, no ffmpeg install, no dependencies.</p>
+
+  <table class="reqs-table">
+    <thead>
+      <tr><th></th><th>Minimum</th><th>Recommended</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>OS</strong></td><td>Windows 10 (64-bit) · macOS 10.15 Catalina · Linux x86-64</td><td>Windows 10/11 · macOS 12+ · Ubuntu 24.04 LTS</td></tr>
+      <tr><td><strong>RAM</strong></td><td>8 GB</td><td>16 GB or more</td></tr>
+      <tr><td><strong>Disk</strong></td><td>2 GB for the app plus room for your clips and outputs</td><td>SSD recommended for large projects</td></tr>
+      <tr><td><strong>Display</strong></td><td>1920 × 1080</td><td>2560 × 1440 QHD</td></tr>
+      <tr><td><strong>ffmpeg</strong></td><td colspan="2">Bundled — no install required</td></tr>
+      <tr><td><strong>Python</strong></td><td colspan="2">Not required — standalone installer</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ── More tools ── -->
+<section class="section" id="tools">
+  <h2 class="section-title">More from Liquid Releasing</h2>
+  <p class="section-sub">Small, focused desktop tools that make it easier to develop cool scripts.</p>
+
+  <div class="tools-grid">
+    <div class="tool-card">
+      <div class="tool-card-header">
+        <img src="https://funscriptforge.com/funscriptforge-logo-wide.png" alt="FunscriptForge" />
+        <div>
+          <h3>FunscriptForge</h3>
+          <p>Structure-aware funscript post-processor. Analyzes phases, cycles, patterns, and phrases — lets you apply per-phrase transforms with live preview. The upstream tool that builds the clip funscripts ForgeAssembler concatenates.</p>
+        </div>
+      </div>
+      <div class="tool-dl">
+        <a href="https://funscriptforge.com" target="_blank" rel="noopener">
+          Visit FunscriptForge.com →
+        </a>
+      </div>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-card-header">
+        <img src="https://funscriptforge.com/forgeyt-logo.png" alt="ForgeYT" />
+        <div>
+          <h3>ForgeYT</h3>
+          <p>Paste a YouTube URL, get the audio file on your disk. MP3, M4A, Opus, or WAV with embedded title and cover art. Useful for grabbing music beds you'll drop onto a ForgeAssembler section as an audio overlay.</p>
+        </div>
+      </div>
+      <div class="tool-dl">
+        <a href="https://github.com/liquid-releasing/forgeyt-releases/releases/latest/download/ForgeYT-windows.zip" download>
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+          Windows
+        </a>
+        <a href="https://github.com/liquid-releasing/forgeyt-releases/releases/latest/download/ForgeYT-macos.zip" download>
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
+          macOS
+        </a>
+        <a href="https://github.com/liquid-releasing/forgeyt-releases/releases/latest/download/ForgeYT-linux.tar.gz" download>
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H4V7h16v12zm-9 2v-2h2v2h-2z"/></svg>
+          Linux
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Download CTA ── -->
+<div class="cta-bar">
+  <section class="section">
+    <h2 class="section-title">Ready to get started?</h2>
+    <p>Download the latest release, extract, and run. No install wizard, no registry entries.</p>
+    <div class="dl-buttons">
+      <a class="btn btn-primary"
+         href="https://github.com/liquid-releasing/forgeassembler-releases/releases/latest/download/ForgeAssembler-windows.zip"
+         download>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
+        </svg>
+        Download for Windows
+      </a>
+      <a class="btn btn-secondary"
+         href="https://github.com/liquid-releasing/forgeassembler-releases/releases/latest/download/ForgeAssembler-macos.zip"
+         download>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/>
+        </svg>
+        Download for macOS
+      </a>
+      <a class="btn btn-secondary"
+         href="https://github.com/liquid-releasing/forgeassembler-releases/releases/latest/download/ForgeAssembler-linux.tar.gz"
+         download>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M20 3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H4V7h16v12zm-9 2v-2h2v2h-2zM5.5 11.5l1.41-1.42L10 13.17l-3.09 3.09L5.5 14.84 7.67 12.5 5.5 11.5zm5.5 4h5v-2h-5v2z"/>
+        </svg>
+        Download for Linux
+      </a>
+    </div>
+    <p class="version-note" style="margin-top:1rem;">
+      Pre-release software. Provided as-is, without warranty of any kind. Use at your own risk.
+    </p>
+    <p style="margin-top:0.75rem;">
+      <a href="https://github.com/liquid-releasing/forgeassembler-releases/releases" style="color:var(--muted); font-size:0.85rem;">
+        All releases on GitHub →
+      </a>
+    </p>
+  </section>
+</div>
+
+<!-- ── Footer ── -->
+<footer>
+  <div style="margin-bottom: 1rem;">
+    <img src="Icon-Only-White.svg" alt="Liquid Releasing" style="height: 96px; width: auto;" />
+  </div>
+  <p>
+    &copy; 2026 Liquid Releasing
+    &nbsp;·&nbsp;
+    <a href="https://github.com/liquid-releasing/forgeassembler/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+    &nbsp;·&nbsp;
+    <a href="https://discord.gg/sZWCqgxY" target="_blank" rel="noopener">Discord</a>
+    &nbsp;·&nbsp;
+    ForgeAssembler is part of the <a href="https://funscriptforge.com">Liquid Releasing family</a>
+  </p>
+</footer>
+
+<!-- ── Latest-release version badge (auto-updated by CI) ── -->
+<script>
+  (async function () {
+    try {
+      const res = await fetch("latest-version.json", { cache: "no-store" });
+      if (!res.ok) return;
+      const { tag } = await res.json();
+      if (tag) {
+        document.getElementById("version-label").textContent = tag;
+      }
+    } catch (_) { /* no-op — falls back to static label */ }
+  })();
+</script>
+
+</body>
+</html>
